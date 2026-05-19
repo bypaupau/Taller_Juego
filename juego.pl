@@ -143,27 +143,32 @@ generar_reporte([P1, P2 | Resto], MisionID, Mensaje) :-
     atomic_list_concat(Lista, ' y ', NombresUnidos), % Une los nombres
     atomic_list_concat([NombresUnidos, FormaVerbal, "capaces de completar", Nombre, "por", XP_Base, "XP (", XP_Total, "XP acumulada)"], ' ', Mensaje).
 
-% Regla para inflingir daño.
-% El jugador puede inflingir daño si el arma tiene suficiente nivel de ataque
+
+% Caso base: Si la mochila está vacía, el daño es 0.
+sumar_armas([], 0).
+
+% Caso recursivo: Saca la primera arma, busca su daño, y súmala con el resto de la mochila.
+sumar_armas([Arma | Resto], Total) :-
+    arma(Arma, Dano),
+    sumar_armas(Resto, SubTotal),
+    Total is Dano + SubTotal.
+
 
 atacar(Jugador, Enemigo) :-
     % 1. Extraemos la lista de armas del jugador     
     inventario(Jugador, ListaArmas),
-    % 2. Elegimos una sola arma de esa lista
-    member(ArmaUsada, ListaArmas),
-    % 3. Obtenemos el daño de esa arma específica
-    arma(ArmaUsada, Dano),
-    % 4. Obtenemos la vida del enemigo
+    % 2. Sumamos el daño de todas las armas a la vez
+    sumar_armas(ListaArmas, DanoTotal),
+    % 3. obtenemos la vida del enemigo
     enemigo(Enemigo, Vida),
-    % 5. Si el daño que puede usar esa arma, es mayor o igual que la vida que tiene el enemigo, lo puede atacar.
-    ( Dano >= Vida ->
+    % 4. Si el daño total es mayor o igual a la vida, gana.
+    ( DanoTotal >= Vida ->
         Resultado = "¡El ataque es letal! El enemigo muere."
     ; 
         Resultado = "El ataque no fue suficiente. El enemigo sobrevive."
     ),
-    
-    % 6. Mostramos el reporte en consola
-    format('~w ataca a ~w usando su ~w (Daño: ~w). ~w~n', [Jugador, Enemigo, ArmaUsada, Dano, Resultado]).
+
+    format('~w ataca a ~w con todo su arsenal (Daño Total: ~w). ~w~n', [Jugador, Enemigo, DanoTotal, Resultado]).
 
 
 % Caso grupal:
@@ -173,11 +178,11 @@ danogrupal([],0).
 % Caso recursivo: Entra a lista de los jugadores y ve uno por uno el daño que puede sre causado por las armas que tienen
 
 % regla para calcular el total de daño causado por el grupo
+% Caso recursivo: Entra a cada jugador y suma TODA su mochila
 danogrupal([Jugador | Resto], DanoTotal):-
     inventario(Jugador, ListaArmas),
-    member(Arma, ListaArmas),
-    arma(Arma, DanoJugador),
-    danogrupal(Resto,DanoResto), %llamada recursiva
+    sumar_armas(ListaArmas, DanoJugador),
+    danogrupal(Resto, DanoResto),
     DanoTotal is DanoJugador + DanoResto.
 
 ataque_grupal(ListaJugadores, Enemigo):-
